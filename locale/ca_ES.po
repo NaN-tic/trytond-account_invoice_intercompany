@@ -1,0 +1,23 @@
+#
+msgid ""
+msgstr "Content-Type: text/plain; charset=utf-8\n"
+
+msgctxt "field:account.invoice,intercompany_invoices:"
+msgid "Intercompany Invoice"
+msgstr "Factura intercompanyia"
+
+msgctxt "field:account.invoice,target_company:"
+msgid "Target company"
+msgstr "Empresa destí"
+
+msgctxt "field:account.invoice.line,intercompany_account:"
+msgid "Intercompany Account"
+msgstr "Compte intercompanyia"
+
+msgctxt "field:account.invoice.line,intercompany_invoice:"
+msgid "Intercompany Invoice"
+msgstr "Factura intercompanyia"
+
+msgctxt "view:account.invoice:"
+msgid "Create Intercompany Invoices"
+msgstr "Crear factures interempresa"
