@@ -203,8 +203,12 @@ class InvoiceLine:
                     ('kind', '=', 'revenue')))
             ],
         states={
-            'invisible': ~Eval('intercompany_invoice', False),
-            'required': Eval('intercompany_invoice', False),
+            'invisible': If(Bool(Eval('_parent_invoice')),
+                    ~Bool(Eval('_parent_invoice', {}).get('target_company')),
+                    ~Eval('intercompany_invoice', False)),
+            'required': If(Bool(Eval('_parent_invoice')),
+                    Bool(Eval('_parent_invoice', {}).get('target_company')),
+                    Eval('intercompany_invoice', False)),
             },
         depends=['intercompany_invoice', 'invoice_type'])
 
