@@ -182,9 +182,10 @@ class Invoice:
 
 class InvoiceLine:
     __name__ = 'account.invoice.line'
+    # Excluce aeat340_book_key to force to calculate it on create
     _intercompany_excluded_fields = ['id', 'account', 'taxes', 'origin',
         'party', 'invoice_type', 'company', 'create_date', 'create_uid',
-        'write_date', 'write_uid', 'intercompany_account']
+        'write_date', 'write_uid', 'intercompany_account', 'aeat340_book_key']
 
     intercompany_invoice = fields.Function(fields.Boolean(
             'Intercompany Invoice'),
