@@ -226,15 +226,14 @@ class InvoiceLine:
     @fields.depends('_parent_invoice.target_company', '_parent_invoice.type',
         'invoice_type')
     def on_change_product(self):
-        changes = super(InvoiceLine, self).on_change_product()
+        super(InvoiceLine, self).on_change_product()
         type_ = self.invoice.type if self.invoice else self.invoice_type
         if self.product and self.invoice and self.invoice.target_company:
             account_name = 'account_%s_used' % ('revenue' if type_[:2] == 'in'
                 else 'expense')
             account = getattr(self.product, account_name)
             if account and account.template:
-                changes['intercompany_account'] = account.template.id
-        return changes
+                self.intercompany_account = account.template
 
     @fields.depends('invoice', '_parent_invoice.target_company')
     def on_change_with_intercompany_invoice(self, name=None):
