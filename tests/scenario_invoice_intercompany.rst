@@ -305,7 +305,7 @@ Check that the intercompany invoice had been created::
     >>> with config.set_context(company=target_company.id):
     ...      target_invoice, = Invoice.find([('company', '=', target_company.id)])
     ...      target_invoice.type
-    u'in_invoice'
+    u'in'
     >>> with config.set_context(company=target_company.id):
     ...      target_invoice.company == target_company
     True

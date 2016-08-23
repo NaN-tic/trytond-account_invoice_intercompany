@@ -22,8 +22,7 @@ class Invoice:
             ('party', '=', Eval('party')),
             ],
         states={
-            'invisible': ~Eval('type', '').in_(
-                ['out_invoice', 'out_credit_note']),
+            'invisible': Eval('type', '') != 'out',
             'readonly': Eval('state') != 'draft',
             },
         depends=['type', 'state', 'party'])
@@ -37,7 +36,7 @@ class Invoice:
         cls._buttons.update({
                 'create_intercompany_invoices': {
                     'invisible': (~Eval('state').in_(['posted', 'paid'])
-                        | Eval('type').in_(['in_invoice', 'in_credit_note'])),
+                        | Eval('type') == 'in'),
                     },
                 })
 
@@ -144,7 +143,7 @@ class Invoice:
     def get_intercompany_invoice(self):
         pool = Pool()
         Party = pool.get('party.party')
-        if (self.type[:4] != 'out_' or not self.target_company
+        if (self.type != 'out' or not self.target_company
                 or self.intercompany_invoices):
             return
         transaction = Transaction()
@@ -193,12 +192,10 @@ class InvoiceLine:
         'Intercompany Account',
         domain=[
             If(Bool(Eval('_parent_invoice')),
-                If(Eval('_parent_invoice', {}).get('type').in_(['out_invoice',
-                    'out_credit_note']),
+                If(Eval('_parent_invoice', {}).get('type') == 'out',
                     ('kind', '=', 'expense'),
                     ('kind', '=', 'revenue')),
-                If(Eval('invoice_type').in_(['out_invoice',
-                            'out_credit_note']),
+                If(Eval('invoice_type') == 'out',
                     ('kind', '=', 'expense'),
                     ('kind', '=', 'revenue')))
             ],
