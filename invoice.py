@@ -3,7 +3,7 @@
 from collections import defaultdict
 from trytond.model import fields, ModelView
 from trytond.pool import Pool, PoolMeta
-from trytond.pyson import Eval, If, Bool
+from trytond.pyson import Equal, Eval, If, Bool
 from trytond.transaction import Transaction
 
 __all__ = ['Invoice', 'InvoiceLine']
@@ -36,7 +36,7 @@ class Invoice:
         cls._buttons.update({
                 'create_intercompany_invoices': {
                     'invisible': (~Eval('state').in_(['posted', 'paid'])
-                        | Eval('type') == 'in'),
+                        | Equal(Eval('type'), 'in')),
                     },
                 })
 
