@@ -8,6 +8,12 @@ Imports::
     >>> from decimal import Decimal
     >>> from operator import attrgetter
     >>> from proteus import config, Model, Wizard
+    >>> from trytond.modules.company.tests.tools import create_company, \
+    ...     get_company
+    >>> from trytond.modules.account.tests.tools import create_fiscalyear, \
+    ...     create_chart, get_accounts, create_tax, set_tax_code
+    >>> from trytond.modules.account_invoice.tests.tools import \
+    ...     set_fiscalyear_invoice_sequences, create_payment_term
     >>> today = datetime.date.today()
 
 Create database::
@@ -15,39 +21,30 @@ Create database::
     >>> config = config.set_trytond()
     >>> config.pool.test = True
 
-Install account_invoice::
+Install account_invoice_intercompany::
 
-    >>> Module = Model.get('ir.module.module')
+    >>> Module = Model.get('ir.module')
     >>> account_invoice_module, = Module.find(
     ...     [('name', '=', 'account_invoice_intercompany')])
     >>> account_invoice_module.click('install')
-    >>> Wizard('ir.module.module.install_upgrade').execute('upgrade')
+    >>> Wizard('ir.module.install_upgrade').execute('upgrade')
 
 Create company::
 
-    >>> Currency = Model.get('currency.currency')
-    >>> CurrencyRate = Model.get('currency.currency.rate')
-    >>> currencies = Currency.find([('code', '=', 'USD')])
-    >>> if not currencies:
-    ...     currency = Currency(name='US Dollar', symbol=u'$', code='USD',
-    ...         rounding=Decimal('0.01'), mon_grouping='[]',
-    ...         mon_decimal_point='.')
-    ...     currency.save()
-    ...     CurrencyRate(date=today + relativedelta(month=1, day=1),
-    ...         rate=Decimal('1.0'), currency=currency).save()
-    ... else:
-    ...     currency, = currencies
-    >>> Company = Model.get('company.company')
-    >>> Party = Model.get('party.party')
-    >>> company_config = Wizard('company.company.config')
-    >>> company_config.execute('company')
-    >>> company = company_config.form
-    >>> party = Party(name='Dunder Mifflin')
-    >>> party.save()
-    >>> company.party = party
-    >>> company.currency = currency
-    >>> company_config.execute('add')
-    >>> company, = Company.find([])
+    >>> _ = create_company()
+    >>> company = get_company()
+
+Create company user::
+
+    >>> User = Model.get('res.user')
+    >>> Group = Model.get('res.group')
+    >>> company_user = User()
+    >>> company_user.name = 'Company User'
+    >>> company_user.login = 'company_user'
+    >>> company_user.main_company = company
+    >>> company_groups = Group.find([])
+    >>> company_user.groups.extend(company_groups)
+    >>> company_user.save()
 
 Reload the context::
 
@@ -56,137 +53,85 @@ Reload the context::
 
 Create chart of accounts::
 
-    >>> AccountTemplate = Model.get('account.account.template')
-    >>> Account = Model.get('account.account')
-    >>> account_template, = AccountTemplate.find([('parent', '=', None)])
-    >>> create_chart = Wizard('account.create_chart')
-    >>> create_chart.execute('account')
-    >>> create_chart.form.account_template = account_template
-    >>> create_chart.form.company = company
-    >>> create_chart.execute('create_account')
-    >>> receivable, = Account.find([
-    ...         ('kind', '=', 'receivable'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> payable, = Account.find([
-    ...         ('kind', '=', 'payable'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> revenue, = Account.find([
-    ...         ('kind', '=', 'revenue'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> expense, = Account.find([
-    ...         ('kind', '=', 'expense'),
-    ...         ('company', '=', company.id),
-    ...         ])
-    >>> account_tax, = Account.find([
-    ...         ('kind', '=', 'other'),
-    ...         ('company', '=', company.id),
-    ...         ('name', '=', 'Main Tax'),
-    ...         ])
-    >>> create_chart.form.account_receivable = receivable
-    >>> create_chart.form.account_payable = payable
-    >>> create_chart.execute('create_properties')
+    >>> _ = create_chart(company)
+    >>> accounts = get_accounts(company)
+    >>> receivable = accounts['receivable']
+    >>> payable = accounts['payable']
+    >>> revenue = accounts['revenue']
+    >>> expense = accounts['expense']
+    >>> account_tax = accounts['tax']
+    >>> account_cash = accounts['cash']
 
-Create tax template::
+Create tax::
 
-    >>> TaxCode = Model.get('account.tax.code.template')
-    >>> TaxTemplate = Model.get('account.tax.template')
-    >>> AccountTemplate = Model.get('account.account.template')
-    >>> account_tax_template, = AccountTemplate.find([
-    ...         ('kind', '=', 'other'),
-    ...         ('name', '=', 'Main Tax'),
-    ...         ])
-    >>> tax = TaxTemplate()
-    >>> tax.account = account_template
-    >>> tax.name = 'Tax'
-    >>> tax.description = 'Tax'
-    >>> tax.type = 'percentage'
-    >>> tax.rate = Decimal('.10')
-    >>> tax.invoice_account = account_tax_template
-    >>> tax.credit_note_account = account_tax_template
-    >>> invoice_base_code = TaxCode(name='invoice base',
-    ...     account=account_template)
-    >>> invoice_base_code.save()
-    >>> tax.invoice_base_code = invoice_base_code
-    >>> invoice_tax_code = TaxCode(name='invoice tax',
-    ...     account=account_template)
-    >>> invoice_tax_code.save()
-    >>> tax.invoice_tax_code = invoice_tax_code
-    >>> credit_note_base_code = TaxCode(name='credit note base',
-    ...     account=account_template)
-    >>> credit_note_base_code.save()
-    >>> tax.credit_note_base_code = credit_note_base_code
-    >>> credit_note_tax_code = TaxCode(name='credit note tax',
-    ...     account=account_template)
-    >>> credit_note_tax_code.save()
-    >>> tax.credit_note_tax_code = credit_note_tax_code
+    >>> Tax = Model.get('account.tax')
+    >>> tax = set_tax_code(create_tax(Decimal('.10'), company=company))
     >>> tax.save()
+
+Create fiscal year::
+
+    >>> fiscalyear = set_fiscalyear_invoice_sequences(
+    ...     create_fiscalyear(company))
+    >>> fiscalyear.click('create_period')
+    >>> period = fiscalyear.periods[0]
+
+Create a another company::
+
+    >>> Party = Model.get('party.party')
+    >>> Company = Model.get('company.company')
+    >>> target_party = Party(name='Dunder Filial')
+    >>> target_party.save()
+    >>> _ = create_company(target_party)
+    >>> target_company, = Company.find([('rec_name', '=', 'Dunder Filial')])
+    >>> target_company.parent = company
+    >>> target_company.save()
+
+Create company user::
+
+    >>> target_company_user = User()
+    >>> target_company_user.name = 'Dunder Filial Company User'
+    >>> target_company_user.login = 'target_company_user'
+    >>> target_company_user.main_company = target_company
+    >>> target_company_groups = Group.find([])
+    >>> target_company_user.groups.extend(target_company_groups)
+    >>> target_company_user.save()
+
+Reload the context::
+
+    >>> config._context = User.get_preferences(True, config.context)
+
+Create chart for the new company::
+
+    >>> _ = create_chart(target_company)
+    >>> target_accounts = get_accounts(target_company)
+    >>> target_receivable = target_accounts['receivable']
+    >>> target_payable = target_accounts['payable']
+    >>> target_revenue = target_accounts['revenue']
+    >>> target_expense = target_accounts['expense']
+    >>> target_account_tax = target_accounts['tax']
+    >>> target_account_cash = target_accounts['cash']
+
+Create tax for the new company::
+
+    >>> config.user = target_company_user.id
+    >>> Tax = Model.get('account.tax')
+    >>> target_tax = Tax()
+    >>> rate = Decimal('.10')
+    >>> target_tax.name = 'Tax %s' % rate
+    >>> target_tax.company = target_company
+    >>> target_tax.description = target_tax.name
+    >>> target_tax.type = 'percentage'
+    >>> target_tax.rate = rate
+    >>> target_tax.invoice_account = target_account_tax
+    >>> target_tax.credit_note_account = target_account_tax
+    >>> target_tax.save()
+    >>> target_tax = set_tax_code(target_tax)
 
 Create fiscal year::
 
     >>> FiscalYear = Model.get('account.fiscalyear')
     >>> Sequence = Model.get('ir.sequence')
     >>> SequenceStrict = Model.get('ir.sequence.strict')
-    >>> fiscalyear = FiscalYear(name=str(today.year))
-    >>> fiscalyear.start_date = today + relativedelta(month=1, day=1)
-    >>> fiscalyear.end_date = today + relativedelta(month=12, day=31)
-    >>> fiscalyear.company = company
-    >>> post_move_seq = Sequence(name=str(today.year), code='account.move',
-    ...     company=company)
-    >>> post_move_seq.save()
-    >>> fiscalyear.post_move_sequence = post_move_seq
-    >>> invoice_seq = SequenceStrict(name=str(today.year),
-    ...     code='account.invoice', company=company)
-    >>> invoice_seq.save()
-    >>> fiscalyear.out_invoice_sequence = invoice_seq
-    >>> fiscalyear.in_invoice_sequence = invoice_seq
-    >>> fiscalyear.out_credit_note_sequence = invoice_seq
-    >>> fiscalyear.in_credit_note_sequence = invoice_seq
-    >>> fiscalyear.save()
-    >>> FiscalYear.create_period([fiscalyear.id], config.context)
-
-Create a another company::
-
-    >>> company_config = Wizard('company.company.config')
-    >>> company_config.execute('company')
-    >>> target_company = company_config.form
-    >>> target_party = Party(name='Dunder Filial')
-    >>> target_party.save()
-    >>> target_company.parent = company
-    >>> target_company.party = target_party
-    >>> target_company.currency = currency
-    >>> company_config.execute('add')
-    >>> target_company, = Company.find([('rec_name', '=', 'Dunder Filial')])
-
-Create chart for the new company::
-
-    >>> create_chart = Wizard('account.create_chart')
-    >>> create_chart.execute('account')
-    >>> create_chart.form.account_template = account_template
-    >>> create_chart.form.company = target_company
-    >>> with config.set_context(company=target_company.id):
-    ...     create_chart.execute('create_account')
-    >>> target_receivable, = Account.find([
-    ...         ('kind', '=', 'receivable'),
-    ...         ('company', '=', target_company.id),
-    ...         ])
-    >>> target_payable, = Account.find([
-    ...         ('kind', '=', 'payable'),
-    ...         ('company', '=', target_company.id),
-    ...         ])
-    >>> target_revenue, = Account.find([
-    ...         ('kind', '=', 'revenue'),
-    ...         ('company', '=', target_company.id),
-    ...         ])
-    >>> target_expense, = Account.find([
-    ...         ('kind', '=', 'expense'),
-    ...         ('company', '=', target_company.id),
-    ...         ])
-    >>> create_chart.form.account_receivable = target_receivable
-    >>> create_chart.form.account_payable = target_payable
-    >>> create_chart.execute('create_properties')
     >>> fiscalyear = FiscalYear(name=str(today.year))
     >>> fiscalyear.start_date = today + relativedelta(month=1, day=1)
     >>> fiscalyear.end_date = today + relativedelta(month=12, day=31)
@@ -207,17 +152,17 @@ Create chart for the new company::
     >>> with config.set_context(company=target_company.id):
     ...     fiscalyear.click('create_period')
 
-
 Sincronize chart between companies::
 
+    >>> AccountTemplate = Model.get('account.account.template')
+    >>> account_template, = AccountTemplate.find([
+    ...     ('parent', '=', None),
+    ...     ('name', '=', 'Minimal Account Chart'),
+    ...     ], limit=1)
     >>> syncronize = Wizard('account.chart.syncronize')
+    >>> syncronize.form.account_template = account_template
+    >>> syncronize.form.default_companies()
     >>> syncronize.execute('syncronize')
-
-Create party::
-
-    >>> Party = Model.get('party.party')
-    >>> party = Party(name='Party')
-    >>> party.save()
 
 Create product::
 
@@ -235,10 +180,6 @@ Create product::
     >>> template.cost_price = Decimal('25')
     >>> template.account_expense = expense
     >>> template.account_revenue = revenue
-    >>> tax, = Tax.find([
-    ...         ('name', '=', 'Tax'),
-    ...         ('company', '=', company.id),
-    ...         ])
     >>> template.customer_taxes.append(tax)
     >>> template.supplier_taxes.append(Tax(tax.id))
     >>> template.save()
@@ -246,12 +187,8 @@ Create product::
     >>> product.save()
     >>> with config.set_context(company=target_company.id):
     ...     template = ProductTemplate(template.id)
-    ...     tax, = Tax.find([
-    ...         ('name', '=', 'Tax'),
-    ...         ('company', '=', target_company.id),
-    ...         ])
-    ...     template.customer_taxes.append(tax)
-    ...     template.supplier_taxes.append(Tax(tax.id))
+    ...     template.customer_taxes.append(target_tax)
+    ...     template.supplier_taxes.append(Tax(target_tax.id))
     ...     template.save()
 
 Create payment term::
