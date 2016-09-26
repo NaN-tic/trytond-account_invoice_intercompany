@@ -7,10 +7,10 @@ from trytond.pyson import Equal, Eval, If, Bool
 from trytond.transaction import Transaction
 
 __all__ = ['Invoice', 'InvoiceLine']
-__metaclass__ = PoolMeta
 
 
 class Invoice:
+    __metaclass__ = PoolMeta
     __name__ = 'account.invoice'
     _intercompany_excluded_fields = ['id', 'company', 'party', 'lines',
         'account', 'type', 'state', 'create_date', 'create_uid', 'write_date',
@@ -163,8 +163,7 @@ class Invoice:
             invoice.party = Party(self.company.party)
             invoice.state = 'draft'
             invoice.reference = self.number
-            for field, value in invoice.on_change_party().iteritems():
-                setattr(invoice, field, value)
+            invoice.on_change_party()
             invoice.account = self.get_intercompany_account()
             lines = []
             for line in old_lines:
@@ -180,6 +179,7 @@ class Invoice:
 
 
 class InvoiceLine:
+    __metaclass__ = PoolMeta
     __name__ = 'account.invoice.line'
     _intercompany_excluded_fields = ['id', 'account', 'taxes', 'origin',
         'party', 'invoice_type', 'company', 'create_date', 'create_uid',
