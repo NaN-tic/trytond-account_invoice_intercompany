@@ -253,7 +253,7 @@ class InvoiceLine:
         tax_name = '%s_taxes_used' % ('customer' if type[:2] == 'in'
             else 'supplier')
         with Transaction().set_context(company=target_company.id):
-            product, = Product.browse([self.product.id])
+            product = Product(self.product.id)
             taxes = getattr(product, tax_name, [])
         return taxes
 
