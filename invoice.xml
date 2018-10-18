@@ -19,5 +19,16 @@
             <field name="inherit" ref="account_invoice.invoice_line_view_form"/>
             <field name="name">invoice_line_form</field>
         </record>
+        <record model="ir.model.button" id="create_intercompany_button">
+            <field name="name">create_intercompany_invoices</field>
+            <field name="string">Create Intercompany Invoices</field>
+            <field name="model" search="[('model', '=', 'account.invoice')]"/>
+        </record>
+        <record model="ir.model.button-res.group"
+            id="create_intercompany_button_group_account">
+            <field name="button" ref="create_intercompany_button"/>
+            <field name="group" ref="account.group_account"/>
+        </record>
+
     </data>
 </tryton>

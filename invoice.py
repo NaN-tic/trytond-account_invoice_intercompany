@@ -6,7 +6,15 @@ from trytond.pool import Pool, PoolMeta
 from trytond.pyson import Equal, Eval, If, Bool
 from trytond.transaction import Transaction
 
-__all__ = ['Invoice', 'InvoiceLine']
+__all__ = ['Invoice', 'InvoiceLine', 'Company']
+
+
+class Company:
+    __metaclass__ = PoolMeta
+    __name__ = 'company.company'
+    intercompany_user = fields.Many2One('res.user', 'Company User',
+        help='User with company rules when create a intercompany sale '
+            'from purchases.')
 
 
 class Invoice:
@@ -43,7 +51,15 @@ class Invoice:
     def get_intercompany_invoices(self, name):
         if not self.target_company:
             return []
-        with Transaction().set_user(0):
+
+        if not self.target_company.intercompany_user:
+            return
+
+        with Transaction().set_user(
+                self.target_company.intercompany_user.id), \
+                Transaction().set_context(
+                    company=self.target_company.id,
+                    _check_access=False):
             return [i.id for i in self.search([
                         ('lines.origin.invoice.id', '=', self.id,
                             'account.invoice.line'),
@@ -60,34 +76,35 @@ class Invoice:
     @ModelView.button
     def create_intercompany_invoices(cls, invoices):
         intercompany_invoices = defaultdict(list)
-        transaction = Transaction()
-        with transaction.set_user(0, set_context=True):
-            for invoice in invoices:
-                intercompany_invoice = invoice.get_intercompany_invoice()
-                if intercompany_invoice:
-                    company_id = intercompany_invoice.company.id
-                    intercompany_invoices[company_id].append(
-                        intercompany_invoice)
-            for company, new_invoices in intercompany_invoices.iteritems():
-                # Company must be set on context to avoid domain errors
-                with transaction.set_context(company=company):
-                    to_write, to_create, to_post = [], [], []
-                    # XXX: Use save multi on version 3.6
-                    for new_invoice in new_invoices:
-                        if new_invoice.id is None or invoice.id < 0:
-                            to_create.append(new_invoice._save_values)
-                        elif new_invoice._save_values:
-                            to_write.append(new_invoice)
-                        else:
-                            to_post.append(new_invoice)
-                    to_post += cls.create(to_create)
-                    if to_write:
-                        cls.write(*sum(
-                                (([i], i._save_values) for i in to_write),
-                                ()))
-                        # We must reload invoices
-                        to_post += cls.browse(to_write)
-                    super(Invoice, cls).post(to_post)
+
+        for invoice in invoices:
+            intercompany_invoice = invoice.get_intercompany_invoice()
+            if intercompany_invoice:
+                company = intercompany_invoice.company
+                intercompany_invoices[company].append(
+                    intercompany_invoice)
+        for company, new_invoices in intercompany_invoices.iteritems():
+            # Company must be set on context to avoid domain errors
+            with Transaction().set_user(company.intercompany_user.id), \
+                    Transaction().set_context(company=company.id,
+                    _check_access=False):
+                to_write, to_create, to_post = [], [], []
+                # XXX: Use save multi on version 3.6
+                for new_invoice in new_invoices:
+                    if new_invoice.id is None or invoice.id < 0:
+                        to_create.append(new_invoice._save_values)
+                    elif new_invoice._save_values:
+                        to_write.append(new_invoice)
+                    else:
+                        to_post.append(new_invoice)
+                to_post += cls.create(to_create)
+                if to_write:
+                    cls.write(*sum(
+                            (([i], i._save_values) for i in to_write),
+                            ()))
+                    # We must reload invoices
+                    to_post += cls.browse(to_write)
+                super(Invoice, cls).post(to_post)
 
     @classmethod
     def draft(cls, invoices):
@@ -129,16 +146,19 @@ class Invoice:
     def get_intercompany_account(self):
         pool = Pool()
         Party = pool.get('party.party')
-        with Transaction().set_context(company=self.target_company.id):
+        with Transaction().set_user(
+                self.target_company.intercompany_user.id), \
+                    Transaction().set_context(company=self.target_company.id,
+                    _check_access=False):
             party = Party(self.company.party)
-            if self.type[:3] == 'out':
+            if self.type == 'out':
                 return party.account_payable
             else:
                 return party.account_receivable
 
     @property
     def intercompany_type(self):
-        return 'in_%s' % self.type[4:]
+        return 'in'
 
     def get_intercompany_invoice(self):
         pool = Pool()
@@ -146,7 +166,6 @@ class Invoice:
         if (self.type != 'out' or not self.target_company
                 or self.intercompany_invoices):
             return
-        transaction = Transaction()
         values = {}
         for name, field in self.__class__._fields.iteritems():
             if (name in set(self._intercompany_excluded_fields) or
@@ -154,8 +173,14 @@ class Invoice:
                 continue
             values[name] = getattr(self, name)
         old_lines = self.lines
-        with transaction.set_context(company=self.target_company.id,
-                _check_access=False):
+
+        if not self.target_company.intercompany_user:
+            return
+
+        with Transaction().set_user(
+            self.target_company.intercompany_user.id), \
+                    Transaction().set_context(company=self.target_company.id,
+                    _check_access=False):
             invoice = self.__class__(**values)
             invoice.type = self.intercompany_type
             invoice.company = self.target_company
@@ -221,7 +246,7 @@ class InvoiceLine:
             cls.product.depends.append('intercompany_invoice')
 
     @fields.depends('_parent_invoice.target_company', '_parent_invoice.type',
-        'invoice_type')
+        'invoice_type', 'invoice')
     def on_change_product(self):
         super(InvoiceLine, self).on_change_product()
         type_ = self.invoice.type if self.invoice else self.invoice_type
@@ -266,8 +291,9 @@ class InvoiceLine:
                 continue
             setattr(line, name, getattr(self, name))
         target_company = self.invoice.target_company
-        with (Transaction().set_user(0) and
-                Transaction().set_context(company=target_company.id)):
+        with Transaction().set_user(target_company.intercompany_user.id), \
+                    Transaction().set_context(company=target_company.id,
+                    _check_access=False):
             line.invoice_type = self.invoice.intercompany_type
             line.company = target_company
             if self.party:

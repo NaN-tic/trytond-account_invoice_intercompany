@@ -10,46 +10,44 @@ Imports::
     >>> from proteus import config, Model, Wizard
     >>> from trytond.modules.company.tests.tools import create_company, \
     ...     get_company
+    >>> from trytond.tests.tools import activate_modules
     >>> from trytond.modules.account.tests.tools import create_fiscalyear, \
-    ...     create_chart, get_accounts, create_tax, set_tax_code
+    ...     create_chart, get_accounts, create_tax
     >>> from trytond.modules.account_invoice.tests.tools import \
     ...     set_fiscalyear_invoice_sequences, create_payment_term
     >>> today = datetime.date.today()
 
-Create database::
-
-    >>> config = config.set_trytond()
-    >>> config.pool.test = True
-
 Install account_invoice_intercompany::
 
-    >>> Module = Model.get('ir.module')
-    >>> account_invoice_module, = Module.find(
-    ...     [('name', '=', 'account_invoice_intercompany')])
-    >>> account_invoice_module.click('install')
-    >>> Wizard('ir.module.install_upgrade').execute('upgrade')
+    >>> config = activate_modules('account_invoice_intercompany')
 
 Create company::
 
     >>> _ = create_company()
     >>> company = get_company()
 
-Create company user::
-
-    >>> User = Model.get('res.user')
-    >>> Group = Model.get('res.group')
-    >>> company_user = User()
-    >>> company_user.name = 'Company User'
-    >>> company_user.login = 'company_user'
-    >>> company_user.main_company = company
-    >>> company_groups = Group.find([])
-    >>> company_user.groups.extend(company_groups)
-    >>> company_user.save()
-
 Reload the context::
 
     >>> User = Model.get('res.user')
+    >>> current_user, = User.find([('login', '=', 'admin')])
+    >>> current_user.main_company = company 
+    >>> current_user.company = company 
+    >>> current_user.save()
     >>> config._context = User.get_preferences(True, config.context)
+
+
+Create user::
+
+    >>> User = Model.get('res.user')
+    >>> company_user = User()
+    >>> company_user.name = 'main'
+    >>> company_user.login = 'main'
+    >>> company_user.main_company = company
+    >>> company_user.company = company
+    >>> company_user.save()
+    >>> company.intercompany_user = company_user
+    >>> company.save()
+
 
 Create chart of accounts::
 
@@ -62,10 +60,17 @@ Create chart of accounts::
     >>> account_tax = accounts['tax']
     >>> account_cash = accounts['cash']
 
+Update accounts on target party for company::
+
+    >>> Party = Model.get('party.party')
+    >>> target_party = Party(name='Dunder Filial')
+    >>> target_party.account_receivable = receivable
+    >>> target_party.account_payable = payable
+    >>> target_party.save()
+    
 Create tax::
 
-    >>> Tax = Model.get('account.tax')
-    >>> tax = set_tax_code(create_tax(Decimal('.10'), company=company))
+    >>> tax = create_tax(Decimal('.10'), company=company)
     >>> tax.save()
 
 Create fiscal year::
@@ -75,30 +80,98 @@ Create fiscal year::
     >>> fiscalyear.click('create_period')
     >>> period = fiscalyear.periods[0]
 
+Set default values::
+
+    >>> AccountConfig = Model.get('account.configuration')
+    >>> account_config = AccountConfig(1)
+    >>> account_config.default_product_account_expense = expense
+    >>> account_config.save()
+
+Create product::
+
+    >>> ProductUom = Model.get('product.uom')
+    >>> unit, = ProductUom.find([('name', '=', 'Unit')])
+    >>> ProductTemplate = Model.get('product.template')
+    >>> Product = Model.get('product.product')
+    >>> template = ProductTemplate()
+    >>> template.name = 'product'
+    >>> template.default_uom = unit
+    >>> template.type = 'service'
+    >>> template.list_price = Decimal('40')
+    >>> template.account_expense = expense
+    >>> template.account_revenue = revenue
+    >>> template.customer_taxes.append(tax)
+    >>> #template.supplier_taxes.append(tax)
+    >>> template.save()
+    >>> product, = template.products
+    >>> product.cost_price = Decimal('25')
+    >>> product.save()
+
+Create payment term::
+
+    >>> PaymentTerm = Model.get('account.invoice.payment_term')
+    >>> payment_term = PaymentTerm(name='Term')
+    >>> line = payment_term.lines.new(type='percent', ratio=Decimal('.5'))
+    >>> delta, = line.relativedeltas
+    >>> delta.days = 20
+    >>> line = payment_term.lines.new(type='remainder')
+    >>> delta = line.relativedeltas.new(days=40)
+    >>> payment_term.save()
+
+
 Create a another company::
 
-    >>> Party = Model.get('party.party')
-    >>> Company = Model.get('company.company')
-    >>> target_party = Party(name='Dunder Filial')
-    >>> target_party.save()
     >>> _ = create_company(target_party)
+    >>> Company = Model.get('company.company')
     >>> target_company, = Company.find([('rec_name', '=', 'Dunder Filial')])
     >>> target_company.parent = company
     >>> target_company.save()
 
-Create company user::
+    >>> User = Model.get('res.user')
+    >>> target_user = User()
+    >>> target_user.name = 'target'
+    >>> target_user.login = 'target'
+    >>> target_user.main_company = target_company
+    >>> target_user.company = target_company
+    >>> target_user.save()
+    >>> target_company.intercompany_user = target_user
+    >>> target_company.save()
 
-    >>> target_company_user = User()
-    >>> target_company_user.name = 'Dunder Filial Company User'
-    >>> target_company_user.login = 'target_company_user'
-    >>> target_company_user.main_company = target_company
-    >>> target_company_groups = Group.find([])
-    >>> target_company_user.groups.extend(target_company_groups)
-    >>> target_company_user.save()
+Create invoice::
+
+    >>> Invoice = Model.get('account.invoice')
+    >>> invoice = Invoice()
+    >>> # invoice.account = receivable
+    >>> invoice.party = target_party
+    >>> invoice.target_company = target_company
+    >>> invoice.payment_term = payment_term
+    >>> invoice.description = 'Invoice'
+    >>> line = invoice.lines.new()
+    >>> line.invoice = invoice
+    >>> line.product = product
+    >>> # line.account = expense
+    >>> # line.intercompany_account = expense.template
+    >>> line.quantity = 5
+    >>> line.unit_price = Decimal(10)
+    >>> line = invoice.lines.new()
+    >>> line.invoice = invoice
+    >>> line.product = product
+    >>> #line.account = expense
+    >>> #line.intercompany_account = expense.template
+    >>> line.description = 'Test'
+    >>> line.quantity = 1
+    >>> line.unit_price = Decimal(20)
+    >>> invoice.save()
 
 Reload the context::
 
+    >>> current_user.main_company = target_company
+    >>> current_user.company = target_company
+    >>> current_user.save()
+    >>> config.context['user'] = current_user
+    >>> config.context['company'] = target_company
     >>> config._context = User.get_preferences(True, config.context)
+    >>> config.context['company'] =  target_company
 
 Create chart for the new company::
 
@@ -111,120 +184,53 @@ Create chart for the new company::
     >>> target_account_tax = target_accounts['tax']
     >>> target_account_cash = target_accounts['cash']
 
+
 Create tax for the new company::
 
-    >>> config.user = target_company_user.id
-    >>> Tax = Model.get('account.tax')
-    >>> target_tax = Tax()
-    >>> rate = Decimal('.10')
-    >>> target_tax.name = 'Tax %s' % rate
-    >>> target_tax.company = target_company
-    >>> target_tax.description = target_tax.name
-    >>> target_tax.type = 'percentage'
-    >>> target_tax.rate = rate
-    >>> target_tax.invoice_account = target_account_tax
-    >>> target_tax.credit_note_account = target_account_tax
-    >>> target_tax.save()
-    >>> target_tax = set_tax_code(target_tax)
+    >>> target_tax = create_tax(Decimal('.10'), target_company)
 
 Create fiscal year::
 
-    >>> FiscalYear = Model.get('account.fiscalyear')
-    >>> Sequence = Model.get('ir.sequence')
-    >>> SequenceStrict = Model.get('ir.sequence.strict')
-    >>> fiscalyear = FiscalYear(name=str(today.year))
-    >>> fiscalyear.start_date = today + relativedelta(month=1, day=1)
-    >>> fiscalyear.end_date = today + relativedelta(month=12, day=31)
-    >>> fiscalyear.company = target_company
-    >>> post_move_seq = Sequence(name=str(today.year), code='account.move',
-    ...     company=target_company)
-    >>> with config.set_context(company=target_company.id):
-    ...     post_move_seq.save()
-    >>> fiscalyear.post_move_sequence = post_move_seq
-    >>> invoice_seq = SequenceStrict(name=str(today.year),
-    ...     code='account.invoice', company=target_company, prefix='FR')
-    >>> with config.set_context(company=target_company.id):
-    ...     invoice_seq.save()
-    >>> fiscalyear.out_invoice_sequence = invoice_seq
-    >>> fiscalyear.in_invoice_sequence = invoice_seq
-    >>> fiscalyear.out_credit_note_sequence = invoice_seq
-    >>> fiscalyear.in_credit_note_sequence = invoice_seq
-    >>> with config.set_context(company=target_company.id):
-    ...     fiscalyear.click('create_period')
+    >>> target_fiscalyear = set_fiscalyear_invoice_sequences(
+    ...     create_fiscalyear(target_company))
+    >>> target_fiscalyear.click('create_period')
 
-Sincronize chart between companies::
 
-    >>> AccountTemplate = Model.get('account.account.template')
-    >>> account_template, = AccountTemplate.find([
-    ...     ('parent', '=', None),
-    ...     ('name', '=', 'Minimal Account Chart'),
-    ...     ], limit=1)
-    >>> syncronize = Wizard('account.chart.syncronize')
-    >>> syncronize.form.account_template = account_template
-    >>> syncronize.form.default_companies()
-    >>> syncronize.execute('syncronize')
+Update accounts for target_party and main_party::
+    
+    >>> cp = Party(company.party.id)
+    >>> cp.account_receivable = target_receivable
+    >>> cp.account_payable = target_payable
+    >>> cp.save()
+    >>> tp = Party(target_company.party.id)
+    >>> tp.account_receivable = target_receivable
+    >>> tp.account_payable = target_payable
+    >>> tp.save()
 
-Create product::
 
-    >>> Tax = Model.get('account.tax')
-    >>> ProductUom = Model.get('product.uom')
-    >>> unit, = ProductUom.find([('name', '=', 'Unit')])
-    >>> ProductTemplate = Model.get('product.template')
-    >>> Product = Model.get('product.product')
-    >>> product = Product()
-    >>> template = ProductTemplate()
-    >>> template.name = 'product'
-    >>> template.default_uom = unit
-    >>> template.type = 'service'
-    >>> template.list_price = Decimal('40')
-    >>> template.cost_price = Decimal('25')
-    >>> template.account_expense = expense
-    >>> template.account_revenue = revenue
-    >>> template.customer_taxes.append(tax)
-    >>> template.supplier_taxes.append(Tax(tax.id))
+
+Set taxes for target company::
+
+    >>> template = ProductTemplate(template.id)
+    >>> template.customer_taxes.append(target_tax)
+    >>> #template.supplier_taxes.append(target_tax)
     >>> template.save()
-    >>> product.template = template
-    >>> product.save()
-    >>> with config.set_context(company=target_company.id):
-    ...     template = ProductTemplate(template.id)
-    ...     template.customer_taxes.append(target_tax)
-    ...     template.supplier_taxes.append(Tax(target_tax.id))
-    ...     template.save()
 
-Create payment term::
+Set User to main company::
 
-    >>> PaymentTerm = Model.get('account.invoice.payment_term')
-    >>> PaymentTermLine = Model.get('account.invoice.payment_term.line')
-    >>> payment_term = PaymentTerm(name='Term')
-    >>> payment_term_line = PaymentTermLine(type='percent', days=20,
-    ...     percentage=Decimal(50))
-    >>> payment_term.lines.append(payment_term_line)
-    >>> payment_term_line = PaymentTermLine(type='remainder', days=40)
-    >>> payment_term.lines.append(payment_term_line)
-    >>> payment_term.save()
+    >>> current_user.main_company = company
+    >>> current_user.company = company
+    >>> current_user.save()
+    >>> config.context['company'] = company
+    >>> config._context = User.get_preferences(True, config.context)
+    >>> config._context['company'] = company
 
-Create invoice::
 
-    >>> Invoice = Model.get('account.invoice')
-    >>> invoice = Invoice()
-    >>> invoice.party = target_party
-    >>> invoice.payment_term = payment_term
-    >>> invoice.target_company = target_company
-    >>> invoice.description = 'Invoice'
-    >>> line = invoice.lines.new()
-    >>> line.product = product
-    >>> line.account = revenue
-    >>> line.intercompany_account == expense.template
-    True
-    >>> line.quantity = 5
-    >>> line = invoice.lines.new()
-    >>> line.product = product
-    >>> line.account = revenue
-    >>> line.description = 'Test'
-    >>> line.quantity = 1
-    >>> line.unit_price = Decimal(20)
-    >>> invoice.click('post')
+
+Post Invoice::
+    >>> Invoice.post([invoice], config.context)
     >>> invoice.reload()
+    True
     >>> invoice.state
     u'posted'
     >>> invoice.untaxed_amount
@@ -236,28 +242,34 @@ Create invoice::
     >>> invoice.number
     u'1'
 
+Set User to target company::
+
+    >>> current_user.main_company = target_company
+    >>> current_user.save()
+    >>> config._context = User.get_preferences(True, config.context)
+
 Check that the intercompany invoice had been created::
 
-
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice, = Invoice.find([('company', '=', target_company.id)])
-    ...      target_invoice.type
+    >>> target_invoice, = Invoice.find([('company', '=', target_company.id)])
+    >>> target_invoice.type
     u'in'
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.company == target_company
+    >>> target_invoice.company == target_company
     True
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.state
+    >>> target_invoice.state
     u'posted'
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.untaxed_amount, target_invoice.tax_amount
+    >>> target_invoice.untaxed_amount, target_invoice.tax_amount
     (Decimal('220.00'), Decimal('22.00'))
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.number, target_invoice.reference
+    >>> target_invoice.number, target_invoice.reference
     (u'FR1', u'1')
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.description
+    >>> target_invoice.description
     u'Invoice'
+
+Set User to main company::
+
+    >>> current_user.main_company = company
+    >>> current_user.save()
+    >>> config._context = User.get_preferences(True, config.context)
+
 
 Credit the original invoice with refund::
 
@@ -268,7 +280,13 @@ Credit the original invoice with refund::
     >>> invoice.reload()
     >>> invoice.state
     u'paid'
-    >>> with config.set_context(company=target_company.id):
-    ...      target_invoice.reload()
-    ...      target_invoice.state
+
+Set User to target company::
+
+    >>> current_user.main_company = target_company
+    >>> current_user.save()
+    >>> config._context = User.get_preferences(True, config.context)
+
+    >>> target_invoice.reload()
+    >>> target_invoice.state
     u'paid'
