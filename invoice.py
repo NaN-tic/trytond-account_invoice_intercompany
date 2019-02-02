@@ -197,10 +197,10 @@ class Invoice:
             return invoice
 
     def _credit(self):
-        res = super(Invoice, self)._credit()
+        credit = super(Invoice, self)._credit()
         if self.target_company:
-            res['target_company'] = self.target_company.id
-        return res
+            credit.target_company = self.target_company.id
+        return credit
 
 
 class InvoiceLine:
@@ -304,6 +304,6 @@ class InvoiceLine:
         return line
 
     def _credit(self):
-        res = super(InvoiceLine, self)._credit()
-        res['intercompany_account'] = self.intercompany_account
-        return res
+        credit = super(InvoiceLine, self)._credit()
+        credit.intercompany_account = self.intercompany_account
+        return credit
