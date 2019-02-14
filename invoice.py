@@ -152,9 +152,9 @@ class Invoice:
                     _check_access=False):
             party = Party(self.company.party)
             if self.type == 'out':
-                return party.account_payable
+                return party.account_payable_used
             else:
-                return party.account_receivable
+                return party.account_receivable_used
 
     @property
     def intercompany_type(self):
