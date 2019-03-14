@@ -10,6 +10,7 @@ MODULE = 'account_invoice_intercompany'
 PREFIX = 'nantic'
 MODULE2PREFIX = {
     'company_account_sync': 'nantic',
+    'company_user': 'nantic',
 }
 
 
