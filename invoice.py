@@ -9,16 +9,14 @@ from trytond.transaction import Transaction
 __all__ = ['Invoice', 'InvoiceLine', 'Company']
 
 
-class Company:
-    __metaclass__ = PoolMeta
+class Company(metaclass=PoolMeta):
     __name__ = 'company.company'
     intercompany_user = fields.Many2One('res.user', 'Company User',
         help='User with company rules when create a intercompany sale '
             'from purchases.')
 
 
-class Invoice:
-    __metaclass__ = PoolMeta
+class Invoice(metaclass=PoolMeta):
     __name__ = 'account.invoice'
     _intercompany_excluded_fields = ['id', 'company', 'party', 'lines',
         'account', 'type', 'state', 'create_date', 'create_uid', 'write_date',
@@ -203,8 +201,7 @@ class Invoice:
         return credit
 
 
-class InvoiceLine:
-    __metaclass__ = PoolMeta
+class InvoiceLine(metaclass=PoolMeta):
     __name__ = 'account.invoice.line'
     _intercompany_excluded_fields = ['id', 'account', 'taxes', 'origin',
         'party', 'invoice_type', 'company', 'create_date', 'create_uid',
