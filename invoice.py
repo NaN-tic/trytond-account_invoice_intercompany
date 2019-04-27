@@ -81,7 +81,7 @@ class Invoice(metaclass=PoolMeta):
                 company = intercompany_invoice.company
                 intercompany_invoices[company].append(
                     intercompany_invoice)
-        for company, new_invoices in intercompany_invoices.iteritems():
+        for company, new_invoices in intercompany_invoices.items():
             # Company must be set on context to avoid domain errors
             with Transaction().set_user(company.intercompany_user.id), \
                     Transaction().set_context(company=company.id,
@@ -113,7 +113,7 @@ class Invoice(metaclass=PoolMeta):
             for iinvoice in intercompany:
                 to_delete[iinvoice.company.id].append(iinvoice)
         if to_delete:
-            for company, delete in to_delete.iteritems():
+            for company, delete in to_delete.items():
                 with Transaction().set_context(company=company):
                     cls.draft(delete)
                     cls.delete(delete)
@@ -165,7 +165,7 @@ class Invoice(metaclass=PoolMeta):
                 or self.intercompany_invoices):
             return
         values = {}
-        for name, field in self.__class__._fields.iteritems():
+        for name, field in self.__class__._fields.items():
             if (name in set(self._intercompany_excluded_fields) or
                     isinstance(field, fields.Function)):
                 continue
@@ -215,11 +215,11 @@ class InvoiceLine(metaclass=PoolMeta):
         domain=[
             If(Bool(Eval('_parent_invoice')),
                 If(Eval('_parent_invoice', {}).get('type') == 'out',
-                    ('kind', '=', 'expense'),
-                    ('kind', '=', 'revenue')),
+                    ('type.expense', '=', True),
+                    ('type.reveue', '=', True)),
                 If(Eval('invoice_type') == 'out',
-                    ('kind', '=', 'expense'),
-                    ('kind', '=', 'revenue')))
+                    ('type.expense', '=', True),
+                    ('type.revenue', '=', True)))
             ],
         states={
             'invisible': If(Bool(Eval('_parent_invoice')),
@@ -282,7 +282,7 @@ class InvoiceLine(metaclass=PoolMeta):
     def get_intercompany_line(self):
         with Transaction().set_user(0):
             line = self.__class__()
-        for name, field in self.__class__._fields.iteritems():
+        for name, field in self.__class__._fields.items():
             if (name in set(self._intercompany_excluded_fields) or
                     isinstance(field, fields.Function)):
                 continue
