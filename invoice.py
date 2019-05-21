@@ -47,17 +47,12 @@ class Invoice(metaclass=PoolMeta):
                 })
 
     def get_intercompany_invoices(self, name):
-        if not self.target_company:
-            return []
-
-        if not self.target_company.intercompany_user:
+        if not self.target_company or not self.target_company.intercompany_user:
             return
 
-        with Transaction().set_user(
-                self.target_company.intercompany_user.id), \
-                Transaction().set_context(
-                    company=self.target_company.id,
-                    _check_access=False):
+        with Transaction().set_user(self.target_company.intercompany_user.id), \
+                Transaction().set_context(company=self.target_company.id,
+                _check_access=False):
             return [i.id for i in self.search([
                         ('lines.origin.invoice.id', '=', self.id,
                             'account.invoice.line'),
@@ -81,6 +76,7 @@ class Invoice(metaclass=PoolMeta):
                 company = intercompany_invoice.company
                 intercompany_invoices[company].append(
                     intercompany_invoice)
+
         for company, new_invoices in intercompany_invoices.items():
             # Company must be set on context to avoid domain errors
             with Transaction().set_user(company.intercompany_user.id), \
@@ -112,9 +108,15 @@ class Invoice(metaclass=PoolMeta):
                 intercompany = cls.browse(invoice.intercompany_invoices)
             for iinvoice in intercompany:
                 to_delete[iinvoice.company.id].append(iinvoice)
+
         if to_delete:
             for company, delete in to_delete.items():
-                with Transaction().set_context(company=company):
+                if not company.intercompany_user:
+                    continue
+
+                with Transaction().set_user(company.intercompany_user.id), \
+                        Transaction().set_context(company=company.id,
+                        _check_access=False):
                     cls.draft(delete)
                     cls.delete(delete)
         super(Invoice, cls).draft(invoices)
@@ -129,11 +131,18 @@ class Invoice(metaclass=PoolMeta):
                 if new_invoice.state == 'paid':
                     for source, target in zip(invoice.intercompany_invoices,
                             new_invoice.intercompany_invoices):
+                        if not source.company.intercompany_user:
+                            continue
+
                         with Transaction().set_user(0):
                             source, = cls.browse([source])
                             target, = cls.browse([target])
-                            company = source.company.id
-                        with Transaction().set_context(company=company):
+                            company_id = source.company.id
+                            user_id = source.company.intercompany_user.id
+
+                        with Transaction().set_user(user_id), \
+                                Transaction().set_context(company=company_id,
+                                _check_access=False):
                             lines = ([l for l in source.lines_to_pay
                                     if not l.reconciliation] +
                                 [l for l in target.lines_to_pay
@@ -142,12 +151,11 @@ class Invoice(metaclass=PoolMeta):
         return new_invoices
 
     def get_intercompany_account(self):
-        pool = Pool()
-        Party = pool.get('party.party')
-        with Transaction().set_user(
-                self.target_company.intercompany_user.id), \
-                    Transaction().set_context(company=self.target_company.id,
-                    _check_access=False):
+        Party = Pool().get('party.party')
+
+        with Transaction().set_user(self.target_company.intercompany_user.id), \
+                Transaction().set_context(company=self.target_company.id,
+                _check_access=False):
             party = Party(self.company.party)
             if self.type == 'out':
                 return party.account_payable_used
@@ -159,8 +167,8 @@ class Invoice(metaclass=PoolMeta):
         return 'in'
 
     def get_intercompany_invoice(self):
-        pool = Pool()
-        Party = pool.get('party.party')
+        Party = Pool().get('party.party')
+
         if (self.type != 'out' or not self.target_company
                 or self.intercompany_invoices):
             return
@@ -175,10 +183,9 @@ class Invoice(metaclass=PoolMeta):
         if not self.target_company.intercompany_user:
             return
 
-        with Transaction().set_user(
-            self.target_company.intercompany_user.id), \
-                    Transaction().set_context(company=self.target_company.id,
-                    _check_access=False):
+        with Transaction().set_user(self.target_company.intercompany_user.id), \
+                Transaction().set_context(company=self.target_company.id,
+                _check_access=False):
             invoice = self.__class__(**values)
             invoice.type = self.intercompany_type
             invoice.company = self.target_company
@@ -274,7 +281,10 @@ class InvoiceLine(metaclass=PoolMeta):
         type = self.invoice.type if self.invoice else self.invoice_type
         tax_name = '%s_taxes_used' % ('customer' if type[:2] == 'in'
             else 'supplier')
-        with Transaction().set_context(company=target_company.id):
+
+        with Transaction().set_user(target_company.intercompany_user.id), \
+                Transaction().set_context(company=target_company.id,
+                _check_access=False):
             product = Product(self.product.id)
             taxes = getattr(product, tax_name, [])
         return taxes
@@ -282,15 +292,17 @@ class InvoiceLine(metaclass=PoolMeta):
     def get_intercompany_line(self):
         with Transaction().set_user(0):
             line = self.__class__()
+
         for name, field in self.__class__._fields.items():
             if (name in set(self._intercompany_excluded_fields) or
                     isinstance(field, fields.Function)):
                 continue
             setattr(line, name, getattr(self, name))
         target_company = self.invoice.target_company
+
         with Transaction().set_user(target_company.intercompany_user.id), \
-                    Transaction().set_context(company=target_company.id,
-                    _check_access=False):
+                Transaction().set_context(company=target_company.id,
+                _check_access=False):
             line.invoice_type = self.invoice.intercompany_type
             line.company = target_company
             if self.party:
