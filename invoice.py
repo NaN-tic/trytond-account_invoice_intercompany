@@ -178,7 +178,6 @@ class Invoice(metaclass=PoolMeta):
                     isinstance(field, fields.Function)):
                 continue
             values[name] = getattr(self, name)
-        old_lines = self.lines
 
         if not self.target_company.intercompany_user:
             return
@@ -196,7 +195,7 @@ class Invoice(metaclass=PoolMeta):
             invoice.on_change_party()
             invoice.account = self.get_intercompany_account()
             lines = []
-            for line in old_lines:
+            for line in self.lines:
                 lines.append(line.get_intercompany_line())
             invoice.lines = lines
             return invoice
