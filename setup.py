@@ -30,6 +30,7 @@ def get_require_version(name):
         major_version, minor_version + 1)
     return require
 
+
 config = ConfigParser()
 config.readfp(open('tryton.cfg'))
 info = dict(config.items('tryton'))
@@ -52,9 +53,10 @@ requires.append(get_require_version('trytond'))
 tests_require = [get_require_version('proteus')]
 series = '%s.%s' % (major_version, minor_version)
 if minor_version % 2:
-    branch = 'default'
+    branch = 'master'
 else:
     branch = series
+
 dependency_links = [
     ('git+https://github.com/NaN-tic/'
         'trytond-company_account_sync@%(branch)s'
