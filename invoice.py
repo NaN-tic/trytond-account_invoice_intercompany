@@ -122,10 +122,10 @@ class Invoice(metaclass=PoolMeta):
         super(Invoice, cls).draft(invoices)
 
     @classmethod
-    def credit(cls, invoices, refund=False):
+    def credit(cls, invoices, refund=False, **values):
         pool = Pool()
         MoveLine = pool.get('account.move.line')
-        new_invoices = super(Invoice, cls).credit(invoices, refund)
+        new_invoices = super(Invoice, cls).credit(invoices, refund, **values)
         if refund:
             for invoice, new_invoice in zip(invoices, new_invoices):
                 if new_invoice.state == 'paid':
@@ -200,8 +200,8 @@ class Invoice(metaclass=PoolMeta):
             invoice.lines = lines
             return invoice
 
-    def _credit(self):
-        credit = super(Invoice, self)._credit()
+    def _credit(self, **values):
+        credit = super(Invoice, self)._credit(**values)
         if self.target_company:
             credit.target_company = self.target_company.id
         return credit
