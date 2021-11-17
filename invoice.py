@@ -305,7 +305,7 @@ class InvoiceLine(metaclass=PoolMeta):
             line.invoice_type = self.invoice.intercompany_type
             line.company = target_company
             if self.party:
-                line.party = target_company.party
+                line.party = self.company.party
             line.account = self.get_intercompany_account()
             line.taxes = self.get_intercompany_taxes()
             line.origin = self
