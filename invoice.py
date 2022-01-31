@@ -235,7 +235,7 @@ class InvoiceLine(metaclass=PoolMeta):
                     Bool(Eval('_parent_invoice', {}).get('target_company')),
                     Eval('intercompany_invoice', False)),
             },
-        depends=['intercompany_invoice', 'invoice_type'])
+        depends=['intercompany_invoice', 'invoice_type', 'invoice'])
 
     @classmethod
     def __setup__(cls):
