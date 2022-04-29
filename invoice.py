@@ -246,7 +246,7 @@ class InvoiceLine(metaclass=PoolMeta):
             if old_required:
                 required |= old_required
             cls.product.states['required'] = required
-            cls.product.depends.append('intercompany_invoice')
+            cls.product.depends.add('intercompany_invoice')
 
     @fields.depends('_parent_invoice.target_company', '_parent_invoice.type',
         'invoice_type', 'invoice')
