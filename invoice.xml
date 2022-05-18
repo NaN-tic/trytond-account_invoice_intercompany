@@ -30,5 +30,31 @@
             <field name="group" ref="account.group_account"/>
         </record>
 
+        <record model="ir.rule.group" id="rule_group_target_company">
+            <field name="name">Target company</field>
+            <field name="model" search="[('model', '=', 'account.invoice')]"/>
+            <field name="global_p" eval="True"/>
+        </record>
+        <!-- Rule created to bypass CompanyTestMixin -->
+         <record model="ir.rule" id="rule_target_company1">
+            <field name="domain"
+                eval="[('target_company', 'in', Eval('companies', []))]"
+                pyson="1"/>
+            <field name="rule_group" ref="rule_group_target_company"/>
+        </record>
+        <!-- Rule created to ignore rule_target_company1 -->
+        <record model="ir.rule" id="rule_target_company2">
+            <field name="domain"
+                eval="[('target_company', '!=', None)]"
+                pyson="1"/>
+            <field name="rule_group" ref="rule_group_target_company"/>
+        </record>
+        <!-- Rule created to ignore rule_target_company1 -->
+        <record model="ir.rule" id="rule_target_company3">
+            <field name="domain"
+                eval="[('target_company', 'in', [None, -1])]"
+                pyson="1"/>
+            <field name="rule_group" ref="rule_group_target_company"/>
+        </record>
     </data>
 </tryton>
