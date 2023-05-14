@@ -6,15 +6,6 @@ from trytond.pool import Pool, PoolMeta
 from trytond.pyson import Equal, Eval, If, Bool
 from trytond.transaction import Transaction
 
-__all__ = ['Invoice', 'InvoiceLine', 'Company']
-
-
-class Company(metaclass=PoolMeta):
-    __name__ = 'company.company'
-    intercompany_user = fields.Many2One('res.user', 'Company User',
-        help='User with company rules when create a intercompany sale '
-            'from purchases.')
-
 
 class Invoice(metaclass=PoolMeta):
     __name__ = 'account.invoice'

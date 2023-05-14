@@ -8,5 +8,4 @@ def register():
     Pool.register(
         invoice.Invoice,
         invoice.InvoiceLine,
-        invoice.Company,
         module='account_invoice_intercompany', type_='model')
