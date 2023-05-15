@@ -185,7 +185,7 @@ class Invoice(metaclass=PoolMeta):
             invoice.reference = self.number
             invoice.on_change_party()
             invoice.account = self.get_intercompany_account()
-            invoice.journal = invoice.on_change_with_journal()
+            invoice.set_journal()
             lines = []
             for line in self.lines:
                 lines.append(line.get_intercompany_line())
