@@ -21,8 +21,7 @@ class Invoice(metaclass=PoolMeta):
         states={
             'invisible': Eval('type', '') != 'out',
             'readonly': Eval('state') != 'draft',
-            },
-        depends=['type', 'state', 'party'])
+            })
     intercompany_invoices = fields.Function(fields.One2Many('account.invoice',
             None, 'Intercompany Invoice'),
         'get_intercompany_invoices')
@@ -227,7 +226,7 @@ class InvoiceLine(metaclass=PoolMeta):
                     Bool(Eval('_parent_invoice', {}).get('target_company')),
                     Eval('intercompany_invoice', False)),
             },
-        depends=['invoice'])
+        )
 
     @classmethod
     def __setup__(cls):
