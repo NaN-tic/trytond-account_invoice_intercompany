@@ -22,7 +22,7 @@
         <record model="ir.model.button" id="create_intercompany_button">
             <field name="name">create_intercompany_invoices</field>
             <field name="string">Create Intercompany Invoices</field>
-            <field name="model" search="[('model', '=', 'account.invoice')]"/>
+            <field name="model">account.invoice</field>
         </record>
         <record model="ir.model.button-res.group"
             id="create_intercompany_button_group_account">
@@ -32,7 +32,7 @@
 
         <record model="ir.rule.group" id="rule_group_target_company">
             <field name="name">Target company</field>
-            <field name="model" search="[('model', '=', 'account.invoice')]"/>
+            <field name="model">account.invoice</field>
             <field name="global_p" eval="True"/>
         </record>
         <!-- Rule created to bypass CompanyTestMixin -->
