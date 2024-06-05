@@ -346,7 +346,7 @@ class InvoiceLine(metaclass=PoolMeta):
                         line.taxes_deductible_rate = 0
                     else:
                         line.taxes_deductible_rate = (
-                            product.supplier_taxes_deductible_rate_used)
+                            line.product.supplier_taxes_deductible_rate_used)
         return line
 
     def _credit(self):
