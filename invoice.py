@@ -300,8 +300,8 @@ class InvoiceLine(metaclass=PoolMeta):
                         taxes.update(tax_ids)
             else:
                 tax_rule = party.customer_tax_rule
-                tax_rule_template = (hasattr(target_company, 'supplier_tax_rule_template')
-                    and getattr(target_company, 'supplier_tax_rule_template'))
+                tax_rule_template = (hasattr(target_company, 'customer_tax_rule_template')
+                    and getattr(target_company, 'customer_tax_rule_template'))
                 if tax_rule_template:
                     tax_rule = tax_rule_template.get_syncronized_company_value(target_company)
 
