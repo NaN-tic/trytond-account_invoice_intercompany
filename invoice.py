@@ -265,6 +265,7 @@ class InvoiceLine(metaclass=PoolMeta):
     def get_intercompany_taxes(self):
         pool = Pool()
         Product = pool.get('product.product')
+        Party = pool.get('party.party')
 
         taxes = set()
         if not self.product:
@@ -278,6 +279,7 @@ class InvoiceLine(metaclass=PoolMeta):
                 Transaction().set_context(company=target_company.id,
                 _check_access=False):
             product = Product(self.product.id)
+            party = Party(party.id)
 
             if type_ == 'out': # if is out, taxes from supplier (in)
                 tax_rule = party.supplier_tax_rule
