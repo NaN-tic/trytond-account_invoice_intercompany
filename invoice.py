@@ -178,6 +178,7 @@ class Invoice(metaclass=PoolMeta):
                 _check_access=False):
             invoice = self.__class__(**values)
             invoice.type = self.intercompany_type
+            invoice.on_change_type()
             invoice.company = self.target_company
             # Rebrowse party in order to pick the correct company context
             invoice.party = Party(self.company.party)
@@ -264,19 +265,60 @@ class InvoiceLine(metaclass=PoolMeta):
     def get_intercompany_taxes(self):
         pool = Pool()
         Product = pool.get('product.product')
-        taxes = []
+        Party = pool.get('party.party')
+
+        taxes = set()
         if not self.product:
             return taxes
+
         target_company = self.invoice.target_company
-        type = self.invoice.type if self.invoice else self.invoice_type
-        tax_name = '%s_taxes_used' % ('customer' if type[:2] == 'in'
-            else 'supplier')
+        party = target_company.party
+        type_ = self.invoice.type if self.invoice else self.invoice_type
 
         with Transaction().set_user(target_company.intercompany_user.id), \
                 Transaction().set_context(company=target_company.id,
                 _check_access=False):
             product = Product(self.product.id)
-            taxes = getattr(product, tax_name, [])
+            party = Party(party.id)
+
+            if type_ == 'out': # if is out, taxes from supplier (in)
+                tax_rule = party.supplier_tax_rule
+                tax_rule_template = (hasattr(target_company, 'supplier_tax_rule_template')
+                    and getattr(target_company, 'supplier_tax_rule_template'))
+                if tax_rule_template:
+                    tax_rule = tax_rule_template.get_syncronized_company_value(target_company)
+
+                pattern = self._get_tax_rule_pattern()
+                for tax in product.supplier_taxes_used:
+                    if party and tax_rule:
+                        tax_ids = tax_rule.apply(tax, pattern)
+                        if tax_ids:
+                            taxes.update(tax_ids)
+                        continue
+                    taxes.add(tax.id)
+                if party and tax_rule:
+                    tax_ids = tax_rule.apply(None, pattern)
+                    if tax_ids:
+                        taxes.update(tax_ids)
+            else:
+                tax_rule = party.customer_tax_rule
+                tax_rule_template = (hasattr(target_company, 'customer_tax_rule_template')
+                    and getattr(target_company, 'customer_tax_rule_template'))
+                if tax_rule_template:
+                    tax_rule = tax_rule_template.get_syncronized_company_value(target_company)
+
+                pattern = self._get_tax_rule_pattern()
+                for tax in product.customer_taxes_used:
+                    if party and tax_rule:
+                        tax_ids = tax_rule.apply(tax, pattern)
+                        if tax_ids:
+                            taxes.update(tax_ids)
+                        continue
+                    taxes.add(tax.id)
+                if party and tax_rule:
+                    tax_ids = tax_rule.apply(None, pattern)
+                    if tax_ids:
+                        taxes.update(tax_ids)
         return taxes
 
     def get_intercompany_line(self):
@@ -297,9 +339,16 @@ class InvoiceLine(metaclass=PoolMeta):
             line.company = target_company
             if self.party:
                 line.party = target_company.party
-            line.account = self.get_intercompany_account()
-            line.taxes = self.get_intercompany_taxes()
             line.origin = self
+            if line.type == 'line':
+                line.account = self.get_intercompany_account()
+                line.taxes = self.get_intercompany_taxes()
+                if line.product:
+                    if target_company.purchase_taxes_expense:
+                        line.taxes_deductible_rate = 0
+                    else:
+                        line.taxes_deductible_rate = (
+                            line.product.supplier_taxes_deductible_rate_used)
         return line
 
     def _credit(self):
