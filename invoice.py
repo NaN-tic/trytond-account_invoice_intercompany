@@ -12,7 +12,7 @@ class Invoice(metaclass=PoolMeta):
     _intercompany_excluded_fields = ['id', 'company', 'party', 'lines',
         'account', 'type', 'state', 'create_date', 'create_uid', 'write_date',
         'write_uid', 'target_company', 'taxes', 'invoice_report_cache',
-        'invoice_report_format', 'move', 'number', 'taxes']
+        'invoice_report_format', 'move', 'cancel_move', 'number', 'taxes']
 
     target_company = fields.Many2One('company.company', 'Target company',
         domain=[
