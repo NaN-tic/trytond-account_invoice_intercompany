@@ -29,7 +29,7 @@ class Invoice(metaclass=PoolMeta):
 
     @classmethod
     def __setup__(cls):
-        super(Invoice, cls).__setup__()
+        super().__setup__()
         cls._buttons.update({
                 'create_intercompany_invoices': {
                     'invisible': (~Eval('state').in_(['posted', 'paid'])
@@ -53,7 +53,7 @@ class Invoice(metaclass=PoolMeta):
 
     @classmethod
     def post(cls, invoices):
-        super(Invoice, cls).post(invoices)
+        super().post(invoices)
         cls.create_intercompany_invoices(invoices)
 
     @classmethod
@@ -89,7 +89,7 @@ class Invoice(metaclass=PoolMeta):
                             ()))
                     # We must reload invoices
                     to_post += cls.browse(to_write)
-                super(Invoice, cls).post(to_post)
+                super().post(to_post)
 
     @classmethod
     def draft(cls, invoices):
@@ -110,13 +110,13 @@ class Invoice(metaclass=PoolMeta):
                         _check_access=False):
                     cls.draft(delete)
                     cls.delete(delete)
-        super(Invoice, cls).draft(invoices)
+        super().draft(invoices)
 
     @classmethod
     def credit(cls, invoices, refund=False, **values):
         pool = Pool()
         MoveLine = pool.get('account.move.line')
-        new_invoices = super(Invoice, cls).credit(invoices, refund, **values)
+        new_invoices = super().credit(invoices, refund, **values)
         if refund:
             for invoice, new_invoice in zip(invoices, new_invoices):
                 if new_invoice.state == 'paid':
@@ -193,7 +193,7 @@ class Invoice(metaclass=PoolMeta):
             return invoice
 
     def _credit(self, **values):
-        credit = super(Invoice, self)._credit(**values)
+        credit = super()._credit(**values)
         if self.target_company:
             credit.target_company = self.target_company.id
         return credit
@@ -231,7 +231,7 @@ class InvoiceLine(metaclass=PoolMeta):
 
     @classmethod
     def __setup__(cls):
-        super(InvoiceLine, cls).__setup__()
+        super().__setup__()
         if 'intercompany_invoice' not in cls.product.depends:
             required = Bool(Eval('intercompany_invoice'))
             old_required = cls.product.states.get('required')
@@ -243,7 +243,7 @@ class InvoiceLine(metaclass=PoolMeta):
     @fields.depends('_parent_invoice.target_company', '_parent_invoice.type',
         'invoice_type', 'invoice')
     def on_change_product(self):
-        super(InvoiceLine, self).on_change_product()
+        super().on_change_product()
         type_ = self.invoice.type if self.invoice else self.invoice_type
         if self.product and self.invoice and self.invoice.target_company:
             account_name = 'account_%s_used' % ('revenue' if type_[:2] == 'in'
@@ -352,6 +352,6 @@ class InvoiceLine(metaclass=PoolMeta):
         return line
 
     def _credit(self):
-        credit = super(InvoiceLine, self)._credit()
+        credit = super()._credit()
         credit.intercompany_account = self.intercompany_account
         return credit
