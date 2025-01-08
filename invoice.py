@@ -77,15 +77,15 @@ class Invoice(metaclass=PoolMeta):
                 # XXX: Use save multi on version 3.6
                 for new_invoice in new_invoices:
                     if new_invoice.id is None or invoice.id < 0:
-                        to_create.append(new_invoice._save_values)
-                    elif new_invoice._save_values:
+                        to_create.append(new_invoice._save_values())
+                    elif new_invoice._save_values():
                         to_write.append(new_invoice)
                     else:
                         to_post.append(new_invoice)
                 to_post += cls.create(to_create)
                 if to_write:
                     cls.write(*sum(
-                            (([i], i._save_values) for i in to_write),
+                            (([i], i._save_values()) for i in to_write),
                             ()))
                     # We must reload invoices
                     to_post += cls.browse(to_write)
