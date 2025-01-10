@@ -9,7 +9,7 @@ from trytond.transaction import Transaction
 
 class Invoice(metaclass=PoolMeta):
     __name__ = 'account.invoice'
-    _intercompany_excluded_fields = ['id', 'company', 'party', 'lines',
+    _intercompany_excluded_fields = ['id', 'company', 'party', 'lines', 'line_lines',
         'account', 'type', 'state', 'create_date', 'create_uid', 'write_date',
         'write_uid', 'target_company', 'taxes', 'invoice_report_cache',
         'invoice_report_format', 'move', 'additional_moves', 'cancel_move',
@@ -89,7 +89,8 @@ class Invoice(metaclass=PoolMeta):
                             ()))
                     # We must reload invoices
                     to_post += cls.browse(to_write)
-                super().post(to_post)
+
+                cls.post(to_post)
 
     @classmethod
     def draft(cls, invoices):
@@ -201,7 +202,7 @@ class Invoice(metaclass=PoolMeta):
 
 class InvoiceLine(metaclass=PoolMeta):
     __name__ = 'account.invoice.line'
-    _intercompany_excluded_fields = ['id', 'account', 'taxes', 'origin',
+    _intercompany_excluded_fields = ['id', 'invoice', 'account', 'taxes', 'origin',
         'party', 'invoice_type', 'company', 'create_date', 'create_uid',
         'write_date', 'write_uid', 'intercompany_account']
 
