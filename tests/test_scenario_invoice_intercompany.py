@@ -33,7 +33,7 @@ class Test(unittest.TestCase):
         User = Model.get('res.user')
         Group = Model.get('res.group')
         admin, = User.find([('login', '=', 'admin')], limit=1)
-        account_group, = Group.find([('name', '=', 'Account')])
+        account_group, = Group.find([('name', '=', 'Accounting')])
 
         # Create companies
         party1 = Party(name='Company1')
