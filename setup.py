@@ -9,10 +9,7 @@ from configparser import ConfigParser
 
 MODULE = 'account_invoice_intercompany'
 PREFIX = 'nantic'
-MODULE2PREFIX = {
-    'company_account_sync': 'nantic',
-    'company_user': 'nantic',
-}
+MODULE2PREFIX = {}
 
 
 def read(fname):
@@ -30,7 +27,6 @@ def get_require_version(name):
         major_version, minor_version + 1)
     return require
 
-
 config = ConfigParser()
 config.readfp(open('tryton.cfg'))
 info = dict(config.items('tryton'))
@@ -45,33 +41,23 @@ minor_version = int(minor_version)
 
 requires = []
 for dep in info.get('depends', []):
-    if not re.match(r'(ir|res|webdav)(\W|$)', dep):
+    if not re.match(r'(ir|res)(\W|$)', dep):
         prefix = MODULE2PREFIX.get(dep, 'trytond')
         requires.append(get_require_version('%s_%s' % (prefix, dep)))
 requires.append(get_require_version('trytond'))
 
-tests_require = [get_require_version('proteus')]
+tests_require = [
+    get_require_version('proteus'),
+]
+
 series = '%s.%s' % (major_version, minor_version)
 if minor_version % 2:
-    branch = 'master'
+    branch = 'default'
 else:
     branch = series
 
-dependency_links = [
-    ('git+https://github.com/NaN-tic/'
-        'trytond-company_account_sync@%(branch)s'
-        '#egg=nantic-company_account_sync-%(series)s' % {
-            'branch': branch,
-            'series': series,
-            }),
-    ('git+https://github.com/NaN-tic/'
-        'trytond-company_user@%(branch)s'
-        '#egg=nantic-company_user-%(series)s' % {
-            'branch': branch,
-            'series': series,
-            }),
+dependency_links = []
 
-    ]
 if minor_version % 2:
     # Add development index for testing with proteus
     dependency_links.append('https://trydevpi.tryton.org/')
@@ -83,7 +69,7 @@ setup(name='%s_%s' % (PREFIX, MODULE),
     author='NaN·tic',
     author_email='info@nan-tic.com',
     url='http://www.nan-tic.com/',
-    download_url="https://github.com/NaN-tic/trytond-%s" % MODULE,
+    download_url="https://bitbucket.org/nantic/trytond-%s" % MODULE,
     package_dir={'trytond.modules.%s' % MODULE: '.'},
     packages=[
         'trytond.modules.%s' % MODULE,
@@ -91,7 +77,7 @@ setup(name='%s_%s' % (PREFIX, MODULE),
         ],
     package_data={
         'trytond.modules.%s' % MODULE: (info.get('xml', [])
-            + ['tryton.cfg', 'locale/*.po', 'tests/*.rst', 'view/*.xml']),
+            + ['tryton.cfg', 'locale/*.po', 'tests/*.rst']),
         },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -111,8 +97,12 @@ setup(name='%s_%s' % (PREFIX, MODULE),
         'Natural Language :: Russian',
         'Natural Language :: Spanish',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Office/Business',
         ],
     license='GPL-3',
