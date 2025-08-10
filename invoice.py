@@ -23,7 +23,7 @@ class Invoice(metaclass=PoolMeta):
             'invisible': Eval('type', '') != 'out',
             'readonly': Eval('state') != 'draft',
             })
-    intercompany_invoices = fields.Function(fields.One2Many('account.invoice',
+    intercompany_invoices = fields.Function(fields.Many2Many('account.invoice',
             None, 'Intercompany Invoice'),
         'get_intercompany_invoices')
 
