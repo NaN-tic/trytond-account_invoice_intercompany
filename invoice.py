@@ -11,7 +11,7 @@ class Invoice(metaclass=PoolMeta):
     __name__ = 'account.invoice'
     _intercompany_excluded_fields = ['id', 'company', 'party', 'lines', 'line_lines',
         'account', 'type', 'state', 'create_date', 'create_uid', 'write_date',
-        'write_uid', 'target_company', 'taxes', 'invoice_report_cache',
+        'write_uid', 'target_company', 'taxes', 'invoice_report_cache_id',
         'invoice_report_format', 'move', 'additional_moves', 'cancel_move',
         'payment_lines', 'number', 'taxes']
 
