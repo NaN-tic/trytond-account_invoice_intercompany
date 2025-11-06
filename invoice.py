@@ -165,8 +165,9 @@ class Invoice(metaclass=PoolMeta):
             return
         values = {}
         for name, field in self.__class__._fields.items():
-            if (name in set(self._intercompany_excluded_fields) or
-                    isinstance(field, fields.Function)):
+            if (name in set(self._intercompany_excluded_fields)
+                    or name.endswith('_cache')
+                    or isinstance(field, fields.Function)):
                 continue
             values[name] = getattr(self, name)
 
