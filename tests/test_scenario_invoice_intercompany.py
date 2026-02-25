@@ -140,7 +140,7 @@ class Test(unittest.TestCase):
         set_user(company_user)
         config._context = User.get_preferences(True, config.context)
         Invoice = Model.get('account.invoice')
-        invoice = Invoice()
+        invoice = Invoice(type='out')
         invoice.party = party2
         invoice.target_company = company2
         invoice.description = 'Invoice'
@@ -205,7 +205,7 @@ class Test(unittest.TestCase):
         # Create new invoice and post
         set_user(company_user)
         config._context = User.get_preferences(True, config.context)
-        invoice = Invoice()
+        invoice = Invoice(type='out')
         invoice.party = party2
         invoice.target_company = company2
         invoice.description = 'Invoice'
