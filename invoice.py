@@ -36,19 +36,42 @@ class Invoice(metaclass=PoolMeta):
                     },
                 })
 
-    def get_intercompany_invoices(self, name):
-        if not self.target_company or not self.target_company.intercompany_user:
-            return
+    @classmethod
+    def _get_intercompany_invoices_map(cls, invoices):
+        InvoiceLine = Pool().get('account.invoice.line')
 
-        with Transaction().set_user(self.target_company.intercompany_user.id), \
-                Transaction().set_context(company=self.target_company.id,
-                _check_access=False):
-            return [i.id for i in self.search([
-                        ('lines.origin.invoice.id', '=', self.id,
+        intercompany_invoices = {invoice.id: [] for invoice in invoices}
+        grouped_invoices = defaultdict(list)
+        for invoice in invoices:
+            if (invoice.id is None or invoice.id < 0
+                    or not invoice.target_company
+                    or not invoice.target_company.intercompany_user):
+                continue
+            grouped_invoices[
+                (invoice.target_company, invoice.intercompany_type)
+            ].append(invoice)
+
+        for (company, type_), grouped in grouped_invoices.items():
+            source_ids = [invoice.id for invoice in grouped]
+            with Transaction().set_user(company.intercompany_user.id), \
+                    Transaction().set_context(
+                        company=company.id, _check_access=False):
+                lines = InvoiceLine.search([
+                        ('origin.invoice.id', 'in', source_ids,
                             'account.invoice.line'),
-                        ('company', '=', self.target_company.id),
-                        ('type', '=', self.intercompany_type),
-                        ])]
+                        ('invoice.company', '=', company.id),
+                        ('invoice.type', '=', type_),
+                        ])
+                for line in lines:
+                    source_id = line.origin.invoice.id
+                    target_id = line.invoice.id
+                    if target_id not in intercompany_invoices[source_id]:
+                        intercompany_invoices[source_id].append(target_id)
+        return intercompany_invoices
+
+    @classmethod
+    def get_intercompany_invoices(cls, invoices, name):
+        return cls._get_intercompany_invoices_map(invoices)
 
     @classmethod
     def post(cls, invoices):
@@ -59,13 +82,19 @@ class Invoice(metaclass=PoolMeta):
     @ModelView.button
     def create_intercompany_invoices(cls, invoices):
         intercompany_invoices = defaultdict(list)
+        existing_intercompany_invoices = cls._get_intercompany_invoices_map(
+            invoices)
 
-        for invoice in invoices:
-            intercompany_invoice = invoice.get_intercompany_invoice()
-            if intercompany_invoice:
-                company = intercompany_invoice.company
-                intercompany_invoices[company].append(
-                    intercompany_invoice)
+        with Transaction().set_context(
+                _intercompany_invoices_map=existing_intercompany_invoices):
+            for invoice in invoices:
+                if existing_intercompany_invoices.get(invoice.id):
+                    continue
+                intercompany_invoice = invoice.get_intercompany_invoice()
+                if intercompany_invoice:
+                    company = intercompany_invoice.company
+                    intercompany_invoices[company].append(
+                        intercompany_invoice)
 
         for company, new_invoices in intercompany_invoices.items():
             # Company must be set on context to avoid domain errors
@@ -159,9 +188,14 @@ class Invoice(metaclass=PoolMeta):
 
     def get_intercompany_invoice(self):
         Party = Pool().get('party.party')
+        context_map = Transaction().context.get('_intercompany_invoices_map')
+        if context_map is not None:
+            intercompany_invoices = context_map.get(self.id, [])
+        else:
+            intercompany_invoices = self.intercompany_invoices
 
         if (self.type != 'out' or not self.target_company
-                or self.intercompany_invoices):
+                or intercompany_invoices):
             return
         values = {}
         for name, field in self.__class__._fields.items():
