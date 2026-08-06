@@ -95,8 +95,6 @@ class Test(unittest.TestCase):
         company_user.company = company1
         company_user.groups.append(account_group)
         company_user.save()
-        company1.intercompany_user = company_user
-        company1.save()
 
         # Create company2 user
         target_user_id, = User.copy([company_user], {
@@ -105,8 +103,6 @@ class Test(unittest.TestCase):
             'company': company2
         }, config.context)
         target_user = User(target_user_id)
-        company2.intercompany_user = target_user
-        company2.save()
 
         # Create chart of accounts
         admin.company = company2
